@@ -1,0 +1,4 @@
+Feathers:
+1. Take ToDo task and its date
+2. Checks todays date and check if any ToDo list is available or not.If available then show the list and if not then ask for the ToDo list
+3. Set ToDo list for next day
