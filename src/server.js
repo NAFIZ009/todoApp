@@ -32,22 +32,37 @@ function validateDateFormat(req,res,next) {
         return;
     }
 
-    next(req, res);
+    next(req,res);
   }
 
 //date validation middleware
-const validate=(dateString,next)=>{
+const validateDate=(req,res,next)=>{
+
+    //req url object 
+    const pathObj =url.parse(req.url,true);
+
+    // //if date is not specified
+    // if(!pathObj.query.date)
+    // {
+    //     res.writeHead(400,{'content-type':'application/json'});
+    //     res.end(JSON.stringify({status:'Unsuccessful', message:'Date is not specified'}));
+    //     return;
+    // }
     //validate day,month and year
     //a date will be valid if it is today or tomorrow
-    const [inputDay, inputMonth, inputYear] = dateString.split('-').map(Number);
+    const [inputDay, inputMonth, inputYear] = pathObj.query.date.split('-').map(Number);
 
+    //current date
     const currentDate = new Date();
 
-    if(!((inputDay ===currentDate.getDate() && inputMonth === currentDate.getMonth()+1 && inputYear === currentDate.getFullYear)||(inputDay ===currentDate.getDate()&& inputMonth === currentDate.getMonth()+1 && inputYear === currentDate.getFullYear))){
-        return false;
+    //check the input date is valid or not
+    if(!((inputDay ===currentDate.getDate() && inputMonth === currentDate.getMonth()+1 && inputYear === currentDate.getFullYear())||(inputDay ===currentDate.getDate()+1 && inputMonth === currentDate.getMonth()+1 && inputYear === currentDate.getFullYear()))){
+        res.writeHead(400,{'content-type':'application/json'});
+        res.end(JSON.stringify({status:'Unsuccessful', message:'Invalid date'}));
+        return;
     }
 
-    next();
+    next(req, res);
 }
 
 //main server
@@ -62,41 +77,47 @@ const server=http.createServer((req, res)=>{
         //POST method 
         if(req.method=='POST')
         {
-            //variable that stores the clients sent data
-            let data={};
-
-            //data that receives chunks
-            let reciveData='';
-
-            //function that receives chunks
-            req.on('data',chunk=>{
-                reciveData+=chunk;
-            });
-
-            //function for end of receive chunks
-            req.on('end',()=>{
-                //storing the data as object to the memory
-                data=JSON.parse(reciveData);
-
-                //path of where the todoList will be stored
-                const filePath=path.join(__dirname,'..','todo_file',`${data.date}`);
-
-                //creating a .txt file of the todoList
-                fs.writeFile(filePath, JSON.stringify(data),(err)=>{
-
-                    //if any error comes
-                    if(err)
-                    {
-                        res.writeHead(500,{'content-type':'application/json'});
-                        res.end(JSON.stringify({status:'unsuccessful', message:'server error'}));
-                    }
-
-                    //sending confirmation to the client for storing the todoList
-                    res.writeHead(201,{'content-type':'application/json'});
-                    res.end(JSON.stringify({status:'successful', message:'upload done'}));
+            //middleware for validate date format
+            validateDateFormat(req,res,(req,res)=>{
+                //middleware for validate date
+                validateDate(req,res,(req,res)=>{
+                    //variable that stores the clients sent data
+                    let data={};
+    
+                    //data that receives chunks
+                    let reciveData='';
+    
+                    //function that receives chunks
+                    req.on('data',chunk=>{
+                        reciveData+=chunk;
+                    });
+    
+                    //function for end of receive chunks
+                    req.on('end',()=>{
+                        //storing the data as object to the memory
+                        data=JSON.parse(reciveData);
+    
+                        //path of where the todoList will be stored
+                        const filePath=path.join(__dirname,'..','todo_file',`${data.date}`);
+    
+                        //creating a .txt file of the todoList
+                        fs.writeFile(filePath, JSON.stringify(data),(err)=>{
+    
+                            //if any error comes
+                            if(err)
+                            {
+                                res.writeHead(500,{'content-type':'application/json'});
+                                res.end(JSON.stringify({status:'unsuccessful', message:'server error'}));
+                            }
+    
+                            //sending confirmation to the client for storing the todoList
+                            res.writeHead(201,{'content-type':'application/json'});
+                            res.end(JSON.stringify({status:'successful', message:'upload done'}));
+                        });
+                    });
+            
                 });
             });
-            
         }
         //GET method
         else if(req.method=='GET')
@@ -123,10 +144,8 @@ const server=http.createServer((req, res)=>{
                     res.writeHead(200,{'content-type':'application/json'});
                     res.end(JSON.stringify({status:'Successful', data:JSON.parse(data)}));
                 });
-            });
-            
+            });    
         }
-        
     }else
     {
         //if api is not valid
