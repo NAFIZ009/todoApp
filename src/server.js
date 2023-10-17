@@ -4,26 +4,51 @@ const url = require('url');
 const fs = require('fs');
 const path = require('path');
 
-//middleware for date validations
-function validateDateFormat(dateString) {
+//middleware 
+//date format validation middleware
+function validateDateFormat(req,res,next) {
+    //req url object 
+    const pathObj =url.parse(req.url,true);
+
+    //if date is not specified
+    if(!pathObj.query.date)
+    {
+        res.writeHead(400,{'content-type':'application/json'});
+        res.end(JSON.stringify({status:'Unsuccessful', message:'Date is not specified'}));
+        return;
+    }
+
     // Define a regular expression for "DD-MM-YYYY" format
     const dateFormatRegex = /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-(1000|19[0-9][0-9]|20[0-9][0-9]|9999)$/;
-  
-    // Check if the string matches the format
-    if (!dateFormatRegex.test(dateString)) {
-      return false;
-    }
-  
+
     // Parse the date components
-    const [day, month, year] = dateString.split('-').map(Number);
+    const [day, month, year] = pathObj.query.date.split('-').map(Number);
   
-    // Validate day, month, and year ranges
-    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1000 || year > 9999) {
-      return false;
+    // Check if the string matches the format & Validate day, month, and year ranges
+    if ((!dateFormatRegex.test(pathObj.query.date))||(day < 1 || day > 31 || month < 1 || month > 12 || year < 1000 || year > 9999)) {
+        //if date format is not acceptable
+        res.writeHead(400,{'content-type':'application/json'});
+        res.end(JSON.stringify({status:'Unsuccessful', message:'Date Format is not acceptable'}));
+        return;
     }
-  
-    return true;
+
+    next(req, res);
   }
+
+//date validation middleware
+const validate=(dateString,next)=>{
+    //validate day,month and year
+    //a date will be valid if it is today or tomorrow
+    const [inputDay, inputMonth, inputYear] = dateString.split('-').map(Number);
+
+    const currentDate = new Date();
+
+    if(!((inputDay ===currentDate.getDate() && inputMonth === currentDate.getMonth()+1 && inputYear === currentDate.getFullYear)||(inputDay ===currentDate.getDate()&& inputMonth === currentDate.getMonth()+1 && inputYear === currentDate.getFullYear))){
+        return false;
+    }
+
+    next();
+}
 
 //main server
 const server=http.createServer((req, res)=>{
@@ -76,14 +101,11 @@ const server=http.createServer((req, res)=>{
         //GET method
         else if(req.method=='GET')
         {
-            //query parameters of the request
-            const parameter=pathObj.query;
-            
-            //checking if the parameter has Date
-            if(parameter.date && validateDateFormat(parameter.date))
-            {
+            const queryDate=url.parse(req.url,true).query.date;
+
+            validateDateFormat(req, res,(req,res)=>{
                 //file path of required data
-                const filePath=path.join(__dirname,'..','todo_file',`${parameter.date}`);
+                const filePath=path.join(__dirname,'..','todo_file',`${queryDate}`);
 
                 //getting the todoList of the specified date
                 fs.readFile(filePath,'utf8',(err,data)=>{
@@ -101,21 +123,8 @@ const server=http.createServer((req, res)=>{
                     res.writeHead(200,{'content-type':'application/json'});
                     res.end(JSON.stringify({status:'Successful', data:JSON.parse(data)}));
                 });
-            }
-            //if Date is not specified in the request
-            else
-            {
-                res.writeHead(400,{'content-type':'application/json'});
-
-                //if date format is not acceptable
-                if(validateDateFormat(parameter.data)==false) 
-                {
-                    res.end(JSON.stringify({status:'Unsuccessful', message:'Date Format is not acceptable'}));
-                    return;
-                }
-                //if date is not given
-                res.end(JSON.stringify({status:'Unsuccessful', message:'Date not specified'}));
-            }
+            });
+            
         }
         
     }else
